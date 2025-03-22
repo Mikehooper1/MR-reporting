@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Sheelvo",
+    "slug": "Sheelvo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sheelvo.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.sheelvo.app",
+      "jsEngine": "hermes",
+      "proguard": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-document-picker",
+      "expo-image-picker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7de59560-0e5d-4452-901b-7d5fa9a053e8"
+      }
+    },
+    "owner": "mikehooper",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    }
+  }
+}
+
