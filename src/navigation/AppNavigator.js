@@ -17,6 +17,7 @@ import ExpenseDetailsScreen from '../screens/main/ExpenseDetailsScreen';
 import SystematicTourPlanScreen from '../screens/main/SystematicTourPlanScreen';
 import MSLListScreen from '../screens/main/MSLListScreen';
 import HOrderScreen from '../screens/main/HOrderScreen';
+import OrderProductScreen from '../screens/main/OrderProductScreen';
 import UtilityScreen from '../screens/main/UtilityScreen';
 import VisualAidScreen from '../screens/main/VisualAidScreen';
 import UserProfileScreen from '../screens/main/UserProfileScreen';
@@ -138,6 +139,11 @@ const AppNavigator = () => {
             name="H-Order" 
             component={HOrderScreen}
             options={{ title: 'H-Order' }}
+          />
+          <Stack.Screen 
+            name="Order Product" 
+            component={OrderProductScreen}
+            options={{ title: 'Order Product' }}
           />
           <Stack.Screen 
             name="Utility" 

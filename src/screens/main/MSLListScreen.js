@@ -644,7 +644,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   formCard: {
-    margin: 16,
+    margin: 16, 
+    backgroundColor: '#fff',
   },
   searchCard: {
     margin: 16,

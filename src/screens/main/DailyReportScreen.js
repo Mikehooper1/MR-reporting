@@ -79,6 +79,14 @@ const DEFAULT_STP_LIST = [
   'INDORE-GWALIOR-INDORE',
 ];
 
+// Predefined names for "Working With"
+const WORKING_WITH_OPTIONS = [
+  'Alice',
+  'Bob',
+  'Charlie',
+  'Diana'
+];
+
 const DailyReportScreen = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -108,11 +116,14 @@ const DailyReportScreen = () => {
     stp: '',
     travelType: '',
     mslPlace: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    workingWith: ''
   });
   const [refreshing, setRefreshing] = useState(false);
   const [markedDates, setMarkedDates] = useState({});
   const [selectedDate, setSelectedDate] = useState('');
+  const [showWorkingWithMenu, setShowWorkingWithMenu] = useState(false);
+  const [workingWith, setWorkingWith] = useState('');
 
   useEffect(() => {
     fetchReports();
@@ -180,6 +191,8 @@ const DailyReportScreen = () => {
       querySnapshot.forEach((doc) => {
         fetchedReports.push({ id: doc.id, ...doc.data() });
       });
+      
+      console.log('Fetched Reports:', fetchedReports);
       
       setReports(fetchedReports);
     } catch (error) {
@@ -268,11 +281,18 @@ const DailyReportScreen = () => {
     setShowMSLMenu(false);
   };
 
+  const handleWorkingWithSelect = (name) => {
+    setWorkingWith(name);
+    setFormData({ ...formData, workingWith: name });
+    setShowWorkingWithMenu(false);
+  };
+
   const handleSubmit = async () => {
     try {
-      if (!formData.type || !formData.title || !formData.description || 
+      if (!formData.type || !formData.title || 
           !formData.location || !formData.address || !formData.selfieUrl || 
-          !formData.hospital || !formData.stp || !formData.travelType || !formData.date) {
+          !formData.hospital || !formData.stp || !formData.travelType || 
+          !formData.date || !formData.workingWith) {
         alert('Please fill in all required fields and take a selfie');
         return;
       }
@@ -292,7 +312,7 @@ const DailyReportScreen = () => {
       const [year, month, day] = formData.date.split('-').map(Number);
       const reportDate = new Date(year, month - 1, day, 12, 0, 0, 0); // Set to noon to avoid timezone issues
 
-      // Save the report with the selected date
+      // Save the report with the selected date and workingWith
       await addDoc(collection(firestore, 'reports'), {
         ...formData,
         userId,
@@ -316,7 +336,8 @@ const DailyReportScreen = () => {
         stp: '',
         travelType: '',
         mslPlace: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        workingWith: ''
       });
       setShowForm(false);
       fetchReports();
@@ -616,6 +637,28 @@ const DailyReportScreen = () => {
               <Text style={styles.mslInfoType}>{formData.hospital}</Text>
             </View>
           )}
+
+          <Menu
+            visible={showWorkingWithMenu}
+            onDismiss={() => setShowWorkingWithMenu(false)}
+            anchor={
+              <Button
+                mode="outlined"
+                onPress={() => setShowWorkingWithMenu(true)}
+                style={styles.input}
+              >
+                {workingWith || "Select Working With*"}
+              </Button>
+            }
+          >
+            {WORKING_WITH_OPTIONS.map((name) => (
+              <Menu.Item
+                key={name}
+                onPress={() => handleWorkingWithSelect(name)}
+                title={name}
+              />
+            ))}
+          </Menu>
           
           <TextInput
             label="Description"
@@ -712,6 +755,8 @@ const DailyReportScreen = () => {
             </Text>
           </View>
 
+          
+
           <Button 
             mode="contained" 
             onPress={handleSubmit}
@@ -744,16 +789,18 @@ const DailyReportScreen = () => {
                 <DataTable.Title textStyle={{fontWeight: 'bold'}}>Date</DataTable.Title>
                 <DataTable.Title textStyle={{fontWeight: 'bold'}}>Type</DataTable.Title>
                 <DataTable.Title textStyle={{fontWeight: 'bold'}}>Doctor</DataTable.Title>
+                <DataTable.Title textStyle={{fontWeight: 'bold'}}>Working With</DataTable.Title>
                 <DataTable.Title textStyle={{fontWeight: 'bold'}}>Status</DataTable.Title>
               </DataTable.Header>
 
               {reports.map((report) => (
                 <DataTable.Row key={report.id}>
                   <DataTable.Cell>
-                    {format(report.createdAt.toDate(), 'dd/MM/yyyy')}
+                    {format(report.createdAt.toDate(), 'dd/MM/yy')}
                   </DataTable.Cell>
                   <DataTable.Cell>{report.type}</DataTable.Cell>
                   <DataTable.Cell>{report.title}</DataTable.Cell>
+                  <DataTable.Cell>{report.workingWith}</DataTable.Cell>
                   <DataTable.Cell>
                     <Text style={getStatusStyle(report.status)}>
                       {report.status.toUpperCase()}
@@ -782,6 +829,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     margin: 16,
+    backgroundColor: '#fff',
   },
   input: {
     marginBottom: 16,

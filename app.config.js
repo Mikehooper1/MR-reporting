@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    name: "Sheelvo",
+    name: "SHEELVO",
     slug: "sheelvo",
     version: "1.0.1",
     orientation: "portrait",
@@ -51,6 +51,12 @@ module.exports = {
         projectId: "7de59560-0e5d-4452-901b-7d5fa9a053e8"
       }
     },
-    owner: "mikehooper"
+    owner: "mikehooper",
+    updates: {
+      url: "https://u.expo.dev/7de59560-0e5d-4452-901b-7d5fa9a053e8"
+    },
+    runtimeVersion: {
+      policy: "appVersion"
+    }
   }
 }; 

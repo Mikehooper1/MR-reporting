@@ -637,6 +637,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     margin: 16,
+    backgroundColor: '#fff',
   },
   input: {
     marginBottom: 16,
@@ -653,6 +654,7 @@ const styles = StyleSheet.create({
   medicineCard: {
     margin: 8,
     marginHorizontal: 16,
+    backgroundColor: '#fff',
   },
   medicineHeader: {
     flexDirection: 'row',

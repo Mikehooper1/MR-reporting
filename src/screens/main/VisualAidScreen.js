@@ -425,6 +425,7 @@ const styles = StyleSheet.create({
     margin: 8,
     maxWidth: Dimensions.get('window').width / 2 - 16,
     elevation: 2,
+    backgroundColor: '#fff',
   },
   gridImage: {
     height: 160,
@@ -474,7 +475,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 16,   
   },
   fileButton: {
     marginTop: 8,
