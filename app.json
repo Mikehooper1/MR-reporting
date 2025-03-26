@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sheelvo",
+    "name": "SHEELVO",
     "slug": "Sheelvo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sheelvo.app"
+      "bundleIdentifier": "com.sheelvo.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to capture images for reports and documents.",
+        "NSPhotoLibraryUsageDescription": "This app uses the photo library to select images for reports and documents.",
+        "NSDocumentsFolderUsageDescription": "This app needs access to documents to handle file uploads and downloads."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,14 +30,33 @@
       },
       "package": "com.sheelvo.app",
       "jsEngine": "hermes",
-      "proguard": true
+      "proguard": true,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static",
+      "build": {
+        "babel": {
+          "include": [
+            "@expo/vector-icons",
+            "react-native-web",
+            "react-native-paper",
+            "@react-native-async-storage/async-storage"
+          ]
+        }
+      },
+      "template": "./public/index.html"
     },
     "plugins": [
       "expo-document-picker",
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-screen-orientation"
     ],
     "extra": {
       "eas": {

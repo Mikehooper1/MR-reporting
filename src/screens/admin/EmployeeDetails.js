@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl, Alert, TouchableOpacity } from 'react-native';
-import { Card, Title, Paragraph, DataTable, Text, Button, ActivityIndicator, List, Divider, TextInput, Portal, Modal, IconButton, Menu, ProgressBar } from 'react-native-paper';
+import { Card, Title, Paragraph, DataTable, Text, Button, ActivityIndicator, List, Divider, TextInput, Portal, Modal, IconButton, Menu, ProgressBar, Dialog } from 'react-native-paper';
 import { firestore, auth } from '../../services/firebase';
 import { collection, query, getDocs, where, doc, getDoc, updateDoc, addDoc, deleteDoc, setDoc, serverTimestamp, onSnapshot, writeBatch } from 'firebase/firestore';
 import { deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -235,7 +235,7 @@ const EmployeeDetails = ({ route, navigation }) => {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
       const startOfMonth = new Date(currentYear, currentMonth, 1);
-      const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
+      const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
       // Fetch current month's target
       const currentMonthTargetId = `${currentYear}_${currentMonth + 1}`;
@@ -244,43 +244,43 @@ const EmployeeDetails = ({ route, navigation }) => {
       
       if (targetDoc.exists()) {
         const targetData = targetDoc.data();
-        // Check if there's a specific target for the current month
-        if (targetData[currentMonthTargetId]) {
-          currentTarget = targetData[currentMonthTargetId];
-        } else {
-          currentTarget = targetData.target || 1000; // Fallback to default target
-        }
+        currentTarget = targetData[currentMonthTargetId] || targetData.target || 1000;
         setMonthlyTarget(currentTarget);
       } else {
-        // If no target is set, use default
         currentTarget = 1000;
         setMonthlyTarget(currentTarget);
       }
 
-      // Fetch current month's sales from both collections
+      // Fetch current month's sales from both collections with proper date filtering
       const [approvedOrdersSnapshot, approvedHOrdersSnapshot] = await Promise.all([
         getDocs(query(
           collection(firestore, 'orders'),
           where('userId', '==', employee.id),
-          where('status', '==', 'approved')
+          where('status', '==', 'approved'),
+          where('createdAt', '>=', startOfMonth),
+          where('createdAt', '<=', endOfMonth)
         )),
         getDocs(query(
           collection(firestore, 'h-orders'),
           where('userId', '==', employee.id),
-          where('status', '==', 'approved')
+          where('status', '==', 'approved'),
+          where('createdAt', '>=', startOfMonth),
+          where('createdAt', '<=', endOfMonth)
         ))
       ]);
       
-      // Combine and filter orders by date
-      const allOrders = [...approvedOrdersSnapshot.docs, ...approvedHOrdersSnapshot.docs];
-      
-      // Calculate current month sales
-      const currentSales = allOrders
-        .filter(doc => {
-          const orderDate = doc.data().createdAt?.toDate();
-          return orderDate >= startOfMonth && orderDate <= endOfMonth;
-        })
-        .reduce((total, doc) => total + (doc.data().totalAmount || doc.data().amount || 0), 0);
+      // Calculate current month sales with improved amount calculation
+      const calculateOrderAmount = (order) => {
+        const data = order.data();
+        if (data.totalAmount) return data.totalAmount;
+        if (data.price && data.quantity) return data.price * data.quantity;
+        return data.amount || 0;
+      };
+
+      const currentSales = [
+        ...approvedOrdersSnapshot.docs,
+        ...approvedHOrdersSnapshot.docs
+      ].reduce((total, doc) => total + calculateOrderAmount(doc), 0);
       
       setCurrentMonthSales(currentSales);
 
@@ -289,15 +289,14 @@ const EmployeeDetails = ({ route, navigation }) => {
       for (let i = 5; i >= 0; i--) {
         const monthIndex = currentMonth - i;
         const yearOffset = Math.floor(monthIndex / 12);
-        const adjustedMonth = ((monthIndex % 12) + 12) % 12; // Handle negative months
+        const adjustedMonth = ((monthIndex % 12) + 12) % 12;
         const year = currentYear + yearOffset;
         
         const monthStart = new Date(year, adjustedMonth, 1);
-        const monthEnd = new Date(year, adjustedMonth + 1, 0);
+        const monthEnd = new Date(year, adjustedMonth + 1, 0, 23, 59, 59);
         
-        // Get target for this specific month
         const monthTargetId = `${year}_${adjustedMonth + 1}`;
-        let monthTarget = currentTarget; // Default to current target
+        let monthTarget = currentTarget;
         
         if (targetDoc.exists()) {
           const targetData = targetDoc.data();
@@ -306,12 +305,28 @@ const EmployeeDetails = ({ route, navigation }) => {
           }
         }
         
-        const monthSales = allOrders
-          .filter(doc => {
-            const orderDate = doc.data().createdAt?.toDate();
-            return orderDate >= monthStart && orderDate <= monthEnd;
-          })
-          .reduce((total, doc) => total + (doc.data().totalAmount || doc.data().amount || 0), 0);
+        // Fetch orders for this month with proper date filtering
+        const [monthOrdersSnapshot, monthHOrdersSnapshot] = await Promise.all([
+          getDocs(query(
+            collection(firestore, 'orders'),
+            where('userId', '==', employee.id),
+            where('status', '==', 'approved'),
+            where('createdAt', '>=', monthStart),
+            where('createdAt', '<=', monthEnd)
+          )),
+          getDocs(query(
+            collection(firestore, 'h-orders'),
+            where('userId', '==', employee.id),
+            where('status', '==', 'approved'),
+            where('createdAt', '>=', monthStart),
+            where('createdAt', '<=', monthEnd)
+          ))
+        ]);
+
+        const monthSales = [
+          ...monthOrdersSnapshot.docs,
+          ...monthHOrdersSnapshot.docs
+        ].reduce((total, doc) => total + calculateOrderAmount(doc), 0);
 
         last6Months.push({
           month: format(monthStart, 'MMM yyyy'),
@@ -1270,257 +1285,6 @@ const EmployeeDetails = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Portal>
-        <Modal
-          visible={editingSalary}
-          onDismiss={() => setEditingSalary(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>Edit Daily Base Salary</Title>
-              <TextInput
-                label="Daily Base Salary (₹)"
-                value={newSalary}
-                onChangeText={setNewSalary}
-                keyboardType="numeric"
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => setEditingSalary(false)} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button mode="contained" onPress={updateBaseSalary} style={styles.modalButton}>
-                  Save
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-
-        <Modal
-          visible={editingAllowance}
-          onDismiss={() => setEditingAllowance(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>Edit Daily Allowance</Title>
-              <TextInput
-                label="Daily Allowance (₹)"
-                value={newAllowance}
-                onChangeText={setNewAllowance}
-                keyboardType="numeric"
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => setEditingAllowance(false)} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button mode="contained" onPress={updateAllowance} style={styles.modalButton}>
-                  Save
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-
-        <Modal
-          visible={editingFareRate}
-          onDismiss={() => setEditingFareRate(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>Edit Fare per Kilometer</Title>
-              <TextInput
-                label="Fare per Kilometer (₹)"
-                value={newFareRate}
-                onChangeText={setNewFareRate}
-                keyboardType="numeric"
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => setEditingFareRate(false)} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button mode="contained" onPress={updateFareRate} style={styles.modalButton}>
-                  Save
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-
-        <Modal
-          visible={editingLocation}
-          onDismiss={() => setEditingLocation(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>Add New Location</Title>
-              <Menu
-                visible={showSTPMenu}
-                onDismiss={() => setShowSTPMenu(false)}
-                anchor={
-                  <Button
-                    mode="outlined"
-                    onPress={() => setShowSTPMenu(true)}
-                    style={styles.input}
-                  >
-                    {selectedSTP || "Select Location*"}
-                  </Button>
-                }
-              >
-                {employee.headquarters ? 
-                  getAvailableSTPs(employee.headquarters).map((stp) => (
-                    <Menu.Item
-                      key={stp.name}
-                      onPress={() => {
-                        setSelectedSTP(stp.name);
-                        setShowSTPMenu(false);
-                      }}
-                      title={`${stp.name} ${stp.type === 'outstation' ? '(Outstation)' : ''}${stp.type === 'ex Headquarter' ? '(Ex Headquarter)' : ''}`}
-                      
-                    />
-                    
-                  ))
-                  :
-                  <Menu.Item
-                    title="Set headquarters first"
-                    disabled
-                  />
-                }
-              </Menu>
-              <TextInput
-                label="Distance (km)"
-                value={newLocation.distance}
-                onChangeText={(text) => setNewLocation({ ...newLocation, distance: text })}
-                keyboardType="numeric"
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => {
-                  setEditingLocation(false);
-                  setSelectedSTP('');
-                  setNewLocation({ name: '', distance: '' });
-                }} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button mode="contained" onPress={addLocation} style={styles.modalButton}>
-                  Save
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-
-        {/* Password Confirmation Dialog */}
-        <Modal
-          visible={showPasswordDialog}
-          onDismiss={() => setShowPasswordDialog(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>{passwordAction === 'reset' ? 'Reset User Password' : 'Confirm Admin Password'}</Title>
-              <Text>
-                {passwordAction === 'reset' 
-                  ? 'Please enter your admin password to reset the user\'s password.'
-                  : 'Please enter your admin password to remove this user.'}
-              </Text>
-              <TextInput
-                label="Admin Password"
-                value={adminPassword}
-                onChangeText={setAdminPassword}
-                secureTextEntry
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => setShowPasswordDialog(false)} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button 
-                  mode="contained" 
-                  onPress={passwordAction === 'reset' ? handleResetPassword : handleRemoveUser} 
-                  style={styles.modalButton}
-                >
-                  {passwordAction === 'reset' ? 'Reset Password' : 'Remove User'}
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-
-        {/* Edit User Dialog */}
-        <Modal
-          visible={showEditDialog}
-          onDismiss={() => setShowEditDialog(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>Edit User Details</Title>
-              <TextInput
-                label="Name"
-                value={editedUser?.name || ''}
-                onChangeText={(text) => setEditedUser(prev => ({ ...prev, name: text }))}
-                style={styles.input}
-              />
-              <TextInput
-                label="Email"
-                value={editedUser?.email || ''}
-                onChangeText={(text) => setEditedUser(prev => ({ ...prev, email: text }))}
-                style={styles.input}
-              />
-              <TextInput
-                label="Phone"
-                value={editedUser?.phone || ''}
-                onChangeText={(text) => setEditedUser(prev => ({ ...prev, phone: text }))}
-                style={styles.input}
-              />
-              <TextInput
-                label="Region"
-                value={editedUser?.region || ''}
-                onChangeText={(text) => setEditedUser(prev => ({ ...prev, region: text }))}
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => setShowEditDialog(false)} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button mode="contained" onPress={handleEditUser} style={styles.modalButton}>
-                  Save Changes
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-
-        {/* Block User Dialog */}
-        <Modal
-          visible={showBlockDialog}
-          onDismiss={() => setShowBlockDialog(false)}
-          contentContainerStyle={styles.modalContainer}>
-          <Card>
-            <Card.Content>
-              <Title>Block User</Title>
-              <Text>Please provide a reason for blocking this user.</Text>
-              <TextInput
-                label="Reason"
-                value={blockReason}
-                onChangeText={setBlockReason}
-                multiline
-                numberOfLines={3}
-                style={styles.input}
-              />
-              <View style={styles.modalButtons}>
-                <Button onPress={() => setShowBlockDialog(false)} style={styles.modalButton}>
-                  Cancel
-                </Button>
-                <Button mode="contained" onPress={handleBlockUser} style={styles.modalButton}>
-                  Block User
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        </Modal>
-      </Portal>
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -1533,61 +1297,145 @@ const EmployeeDetails = ({ route, navigation }) => {
       >
         {renderEmployeeInfo()}
         {renderMonthlySalesData()}
-        <Card style={styles.card}>
-          <Card.Content>
-            <Title>Headquarters</Title>
-            {editingHeadquarters ? (
-              <View style={styles.editContainer}>
+        {renderExpenseSettings()}
+        {renderActivitySummary()}
+        {renderRecentActivities()}
+        
+        <Portal>
+          <Modal visible={editingSalary} onDismiss={() => setEditingSalary(false)} contentContainerStyle={styles.modalContainer}>
+            <Card>
+              <Card.Title title="Update Daily Base Salary" />
+              <Card.Content>
+                <TextInput
+                  label="Daily Base Salary (₹)"
+                  value={newSalary}
+                  onChangeText={setNewSalary}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </Card.Content>
+              <Card.Actions>
+                <Button onPress={() => setEditingSalary(false)}>Cancel</Button>
+                <Button onPress={updateBaseSalary} mode="contained">Save</Button>
+              </Card.Actions>
+            </Card>
+          </Modal>
+
+          <Modal visible={editingAllowance} onDismiss={() => setEditingAllowance(false)} contentContainerStyle={styles.modalContainer}>
+            <Card>
+              <Card.Title title="Update Daily Allowance" />
+              <Card.Content>
+                <TextInput
+                  label="Daily Allowance (₹)"
+                  value={newAllowance}
+                  onChangeText={setNewAllowance}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </Card.Content>
+              <Card.Actions>
+                <Button onPress={() => setEditingAllowance(false)}>Cancel</Button>
+                <Button onPress={updateAllowance} mode="contained">Save</Button>
+              </Card.Actions>
+            </Card>
+          </Modal>
+
+          <Modal visible={editingFareRate} onDismiss={() => setEditingFareRate(false)} contentContainerStyle={styles.modalContainer}>
+            <Card>
+              <Card.Title title="Update Fare per Kilometer" />
+              <Card.Content>
+                <TextInput
+                  label="Fare per Kilometer (₹)"
+                  value={newFareRate}
+                  onChangeText={setNewFareRate}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+              </Card.Content>
+              <Card.Actions>
+                <Button onPress={() => setEditingFareRate(false)}>Cancel</Button>
+                <Button onPress={updateFareRate} mode="contained">Save</Button>
+              </Card.Actions>
+            </Card>
+          </Modal>
+
+          <Modal visible={editingLocation} onDismiss={() => setEditingLocation(false)} contentContainerStyle={styles.modalContainer}>
+            <Card>
+              <Card.Content>
+                <Title>Add New Location</Title>
                 <Menu
                   visible={showSTPMenu}
                   onDismiss={() => setShowSTPMenu(false)}
                   anchor={
-                    <Button onPress={() => setShowSTPMenu(true)}>
-                      {newHeadquarters || 'Select Headquarters'}
+                    <Button
+                      mode="outlined"
+                      onPress={() => setShowSTPMenu(true)}
+                      style={styles.input}
+                    >
+                      {selectedSTP || "Select Location*"}
                     </Button>
                   }
                 >
-                  {Object.keys(HEADQUARTERS_CONFIG).map((hq) => (
+                  {employee.headquarters ? 
+                    getAvailableSTPs(employee.headquarters).map((stp) => (
+                      <Menu.Item
+                        key={stp.name}
+                        onPress={() => {
+                          setSelectedSTP(stp.name);
+                          setShowSTPMenu(false);
+                        }}
+                        title={`${stp.name} ${stp.type === 'outstation' ? '(Outstation)' : ''}${stp.type === 'ex Headquarter' ? '(Ex Headquarter)' : ''}`}
+                        
+                      />
+                      
+                    ))
+                    :
                     <Menu.Item
-                      key={hq}
-                      onPress={() => {
-                        setNewHeadquarters(hq);
-                        setShowSTPMenu(false);
-                      }}
-                      title={hq}
+                      title="Set headquarters first"
+                      disabled
                     />
-                  ))}
+                  }
                 </Menu>
-                <View style={styles.buttonContainer}>
-                  <Button mode="contained" onPress={updateHeadquarters}>
-                    Save
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    onPress={() => {
-                      setEditingHeadquarters(false);
-                      setNewHeadquarters(employee.headquarters || '');
-                    }}
-                  >
+                <TextInput
+                  label="Distance (km)"
+                  value={newLocation.distance}
+                  onChangeText={(text) => setNewLocation({ ...newLocation, distance: text })}
+                  keyboardType="numeric"
+                  style={styles.input}
+                />
+                <View style={styles.modalButtons}>
+                  <Button onPress={() => {
+                    setEditingLocation(false);
+                    setSelectedSTP('');
+                    setNewLocation({ name: '', distance: '' });
+                  }} style={styles.modalButton}>
                     Cancel
                   </Button>
+                  <Button mode="contained" onPress={addLocation} style={styles.modalButton}>
+                    Save
+                  </Button>
                 </View>
-              </View>
-            ) : (
-              <View style={styles.valueContainer}>
-                <Text>{employee.headquarters || 'Not Set'}</Text>
-                <IconButton
-                  icon="pencil"
-                  size={20}
-                  onPress={() => setEditingHeadquarters(true)}
-                />
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-        {renderExpenseSettings()}
-        {renderActivitySummary()}
-        {renderRecentActivities()}
+              </Card.Content>
+            </Card>
+          </Modal>
+
+          <Dialog visible={showPasswordDialog} onDismiss={() => setShowPasswordDialog(false)}>
+            <Dialog.Title>Admin Authentication Required</Dialog.Title>
+            <Dialog.Content>
+              <TextInput
+                label="Admin Password"
+                value={adminPassword}
+                onChangeText={setAdminPassword}
+                secureTextEntry
+                style={styles.input}
+              />
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setShowPasswordDialog(false)}>Cancel</Button>
+              <Button onPress={handleRemoveUser} mode="contained">Confirm</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </ScrollView>
     </View>
   );
@@ -1601,6 +1449,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 16,
+    backgroundColor: '#fff',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1609,52 +1458,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   editTargetButton: {
-    marginLeft: 8,
-  },
-  achievementText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  helperText: {
-    marginTop: 8,
-    marginBottom: 16,
-    fontSize: 12,
-    color: '#666',
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    marginBottom: 8,
-  },
-  activityItem: {
-    marginBottom: 4,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  divider: {
-    marginVertical: 16,
-  },
-  input: {
-    marginBottom: 8,
-  },
-  modalContainer: {
-    padding: 16,
-    margin: 16,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-  },
-  modalButton: {
     marginLeft: 8,
   },
   salesHeader: {
@@ -1666,7 +1469,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#fff',
     borderRadius: 8,
     marginRight: 8,
   },
@@ -1674,7 +1477,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#fff',
     borderRadius: 8,
     marginLeft: 8,
   },
@@ -1693,21 +1496,48 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  chip: {
-    margin: 4,
+  achievementText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignSelf: 'center',
+  sectionTitle: {
+    fontSize: 18,
+    marginBottom: 15,
+    color: '#333',
+  },
+  divider: {
+    marginVertical: 16,
+  },
+  modalContainer: {
+    padding: 16,
+    margin: 16,
+    backgroundColor: '#fff',
+  },
+  input: {
+    marginBottom: 8,
+    backgroundColor: '#fff',
+  },
+  helperText: {
+    marginTop: 8,
     marginBottom: 16,
+    fontSize: 12,
+    color: '#666',
   },
-  centeredRow: {
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: '#fff',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  modalButton: {
+    marginLeft: 8,
   },
   statsContainer: {
     flexDirection: 'row',

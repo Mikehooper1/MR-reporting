@@ -193,7 +193,7 @@ const AdminDashboard = ({ navigation }) => {
 
   const handleAddSlider = async () => {
     try {
-      if (!formData.title || !formData.description || !formData.imageUrl) {
+      if (!formData.imageUrl) {
         alert('Please fill in all fields and select an image');
         return;
       }
@@ -720,6 +720,7 @@ const styles = StyleSheet.create({
     width: '48%',
     marginBottom: 16,
     elevation: 2,
+    backgroundColor: '#fff',
   },
   statNumber: {
     fontSize: 20,
@@ -729,6 +730,7 @@ const styles = StyleSheet.create({
   tableCard: {
     margin: 16,
     elevation: 2,
+    backgroundColor: '#fff',
   },
   searchBar: {
     marginVertical: 16,
@@ -779,6 +781,7 @@ const styles = StyleSheet.create({
     width: '48%',
     marginBottom: 16,
     elevation: 2,
+    backgroundColor: '#fff',
   },
   iconContainer: {
     width: 48,
@@ -797,7 +800,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   topNavbar: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
   },
@@ -838,6 +841,7 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: 16,
+    backgroundColor: '#fff',
   },
   sectionHeader: {
     flexDirection: 'row',

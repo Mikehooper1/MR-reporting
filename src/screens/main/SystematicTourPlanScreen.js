@@ -277,11 +277,13 @@ const styles = StyleSheet.create({
   card: {
     margin: 10,
     elevation: 4,
+    backgroundColor: '#fff',
   },
   detailsCard: {
     margin: 10,
     marginTop: 0,
     elevation: 4,
+    backgroundColor: '#fff',
   },
   calendar: {
     marginVertical: 10,

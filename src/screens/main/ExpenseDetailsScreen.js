@@ -1033,6 +1033,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     margin: 16,
+    backgroundColor: '#fff',
   },
   leaveSection: {
     marginBottom: 16,

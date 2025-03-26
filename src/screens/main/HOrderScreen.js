@@ -11,7 +11,8 @@ import {
   Portal,
   Modal,
   List,
-  Divider
+  Divider,
+  Surface
 } from 'react-native-paper';
 import { format } from 'date-fns';
 import { firestore, auth } from '../../services/firebase';
@@ -35,6 +36,8 @@ const HOrderScreen = () => {
     remarks: ''
   });
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     fetchOrders();
@@ -103,7 +106,7 @@ const HOrderScreen = () => {
 
   const handleSubmit = async () => {
     try {
-      if (!formData.type || !formData.priority || !formData.productId || !formData.quantity) {
+      if (!formData.type  || !formData.productId || !formData.quantity) {
         alert('Please fill in all required fields (Type, Priority, Product, and Quantity)');
         return;
       }
@@ -134,13 +137,20 @@ const HOrderScreen = () => {
         createdAt: new Date(),
         userName: auth.currentUser?.displayName || '',
         userEmail: auth.currentUser?.email || '',
-        type: 'order',
-        orderType: formData.type,
+        type: formData.type,
         productName: selectedProduct.name,
-        productPrice: selectedProduct.price,
+        price: selectedProduct.price || 0,
+        pts: selectedProduct.pts || 0,
+        ptr: selectedProduct.ptr || 0,
         totalAmount: selectedProduct.price * parseInt(formData.quantity),
-        title: `Order: ${selectedProduct.name}`,
-        description: `Type: ${formData.type}\nQuantity: ${formData.quantity}\nPrice: ₹${selectedProduct.price}\nTotal: ₹${selectedProduct.price * parseInt(formData.quantity)}\nPriority: ${formData.priority}${formData.hospitalName ? '\nHospital: ' + formData.hospitalName : ''}${formData.doctorName ? '\nDoctor: ' + formData.doctorName : ''}${formData.remarks ? '\nRemarks: ' + formData.remarks : ''}`
+        imageUrl: selectedProduct.imageUrl,
+        description: `Type: ${formData.type}
+Quantity: ${formData.quantity}
+Base Price: ₹${selectedProduct.price || 0}
+PTS: ₹${selectedProduct.pts || 0}
+PTR: ₹${selectedProduct.ptr || 0}
+Total: ₹${(selectedProduct.price || 0) * parseInt(formData.quantity)}
+Priority: ${formData.priority}${formData.hospitalName ? '\nHospital: ' + formData.hospitalName : ''}${formData.doctorName ? '\nDoctor: ' + formData.doctorName : ''}${formData.remarks ? '\nRemarks: ' + formData.remarks : ''}`
       };
 
       console.log('Submitting order with data:', orderData);
@@ -282,35 +292,38 @@ const HOrderScreen = () => {
             </View>
           ) : (
             <DataTable>
-              <DataTable.Header style={styles.dataTableHeader}>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }}>Date</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }}>Type</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }}>Product</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }} numeric>Price</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }} numeric>Qty</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }} numeric>Total</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }}>Priority</DataTable.Title>
-                <DataTable.Title textStyle={{ fontWeight: 'bold' }}>Status</DataTable.Title>
+              <DataTable.Header>
+                <DataTable.Title>Date</DataTable.Title>
+                <DataTable.Title>Product</DataTable.Title>
+                <DataTable.Title numeric>Price</DataTable.Title>
+                <DataTable.Title numeric>Qty</DataTable.Title>
+                <DataTable.Title numeric>Total</DataTable.Title>
+                <DataTable.Title>Priority</DataTable.Title>
+                <DataTable.Title>Status</DataTable.Title>
               </DataTable.Header>
 
               {orders.map((order) => (
-                <DataTable.Row key={order.id}>
+                <DataTable.Row 
+                  key={order.id}
+                  onPress={() => {
+                    setSelectedOrder(order);
+                    setShowOrderDetails(true);
+                  }}
+                  style={styles.tableRow}
+                >
                   <DataTable.Cell>
-                    {format(order.createdAt.toDate(), 'dd/MM/yyyy')}
+                    {format(order.createdAt.toDate(), 'dd/MM')}
                   </DataTable.Cell>
-                  <DataTable.Cell>{order.orderType}</DataTable.Cell>
                   <DataTable.Cell>{order.productName}</DataTable.Cell>
-                  <DataTable.Cell numeric>₹{order.productPrice}</DataTable.Cell>
+                  <DataTable.Cell numeric>₹{(order.price || 0).toLocaleString()}</DataTable.Cell>
                   <DataTable.Cell numeric>{order.quantity}</DataTable.Cell>
-                  <DataTable.Cell numeric>₹{order.totalAmount}</DataTable.Cell>
+                  <DataTable.Cell numeric>₹{((order.price || 0) * order.quantity).toLocaleString()}</DataTable.Cell>
                   <DataTable.Cell>
-                    <Text style={getPriorityStyle(order.priority)}>
-                      {order.priority}
-                    </Text>
+                    <Text style={getPriorityStyle(order.priority)}>{order.priority}</Text>
                   </DataTable.Cell>
                   <DataTable.Cell>
                     <Text style={getStatusStyle(order.status)}>
-                      {order.status.toUpperCase()}
+                      {order.status?.toUpperCase() || 'PENDING'}
                     </Text>
                   </DataTable.Cell>
                 </DataTable.Row>
@@ -358,6 +371,95 @@ const HOrderScreen = () => {
         </Modal>
       </Portal>
 
+      <Portal>
+        <Modal
+          visible={showOrderDetails}
+          onDismiss={() => setShowOrderDetails(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          {selectedOrder && (
+            <Surface style={styles.modalContent}>
+              <Title>Order Details</Title>
+              <Divider style={styles.modalDivider} />
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Product:</Text>
+                <Text style={styles.detailValue}>{selectedOrder.productName}</Text>
+              </View>
+
+              <View style={styles.priceContainer}>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Base Price:</Text>
+                  <Text style={styles.priceValue}>₹{(selectedOrder.price || 0).toLocaleString()}</Text>
+                </View>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>PTS:</Text>
+                  <Text style={styles.priceValue}>₹{(selectedOrder.pts || 0).toLocaleString()}</Text>
+                </View>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>PTR:</Text>
+                  <Text style={styles.priceValue}>₹{(selectedOrder.ptr || 0).toLocaleString()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Quantity:</Text>
+                <Text style={styles.detailValue}>{selectedOrder.quantity}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Total Amount:</Text>
+                <Text style={styles.detailValue}>₹{(selectedOrder.price * selectedOrder.quantity || 0).toLocaleString()}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Type:</Text>
+                <Text style={styles.detailValue}>{selectedOrder.type}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Priority:</Text>
+                <Text style={[styles.detailValue, getPriorityStyle(selectedOrder.priority)]}>
+                  {selectedOrder.priority}
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Status:</Text>
+                <Text style={[styles.detailValue, getStatusStyle(selectedOrder.status)]}>
+                  {selectedOrder.status?.toUpperCase() || 'PENDING'}
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Hospital:</Text>
+                <Text style={styles.detailValue}>{selectedOrder.hospitalName}</Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Doctor:</Text>
+                <Text style={styles.detailValue}>{selectedOrder.doctorName}</Text>
+              </View>
+
+              {selectedOrder.remarks && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Remarks:</Text>
+                  <Text style={styles.detailValue}>{selectedOrder.remarks}</Text>
+                </View>
+              )}
+
+              <Button
+                mode="outlined"
+                onPress={() => setShowOrderDetails(false)}
+                style={styles.closeButton}
+              >
+                Close
+              </Button>
+            </Surface>
+          )}
+        </Modal>
+      </Portal>
+
       <FAB
         style={styles.fab}
         icon={showForm ? 'close' : 'plus'}
@@ -400,6 +502,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     margin: 16,
+    backgroundColor: '#fff',
   },
   input: {
     marginBottom: 16,
@@ -417,17 +520,66 @@ const styles = StyleSheet.create({
     backgroundColor: '#CCCCFF',
   },
   modalContainer: {
-    backgroundColor: 'white',
     padding: 20,
-    margin: 20,
-    borderRadius: 8,
-    maxHeight: '80%',
+    backgroundColor: 'transparent',
   },
   productList: {
     maxHeight: 400,
   },
   modalButton: {
     marginTop: 16,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 8,
+  },
+  modalDivider: {
+    marginVertical: 16,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#1a1a1a',
+    flex: 2,
+    textAlign: 'right',
+  },
+  priceContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  priceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+  },
+  closeButton: {
+    marginTop: 24,
+  },
+  tableRow: {
+    cursor: 'pointer',
   },
 });
 

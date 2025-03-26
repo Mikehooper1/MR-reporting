@@ -112,29 +112,30 @@ const DashboardScreen = ({ navigation }) => {
   }, []);
 
   const navigationIcons = [
+   
     {
       title: 'Daily Report',
       icon: 'file-document',
       route: 'Daily Report',
-      color: '#2196F3'
+      color: '#E91E63'
     },
     {
-      title: 'Leave',
-      icon: 'calendar-clock',
-      route: 'Leave',
-      color: '#009688'
-    },
-    {
-      title: 'Expenses',
-      icon: 'cash',
-      route: 'Expenses',
+      title: 'Products',
+      icon: 'pill',
+      route: 'Medicines List',
       color: '#4CAF50'
     },
     {
-      title: 'STP',
-      icon: 'calendar',
-      route: 'STP',
-      color: '#FF9800'
+      title: 'Visual Aids',
+      icon: 'image',
+      route: 'Visual Aid',
+      color: '#2196F3'
+    },
+    {
+      title: 'Expenses',
+      icon: 'chart-line',
+      route: 'Expenses',
+      color: '#795548'
     },
     {
       title: 'MSL List',
@@ -143,35 +144,49 @@ const DashboardScreen = ({ navigation }) => {
       color: '#9C27B0'
     },
     {
-      title: 'Products',
-      icon: 'pill',
-      route: 'Medicines List',
-      color: '#E91E63'
-    },
-    {
-      title: 'Orders',
+      title: 'My Orders',
       icon: 'cart',
       route: 'H-Order',
-      color: '#E91E63'
+      color: '#FF9800'
     },
+    {
+      title: 'PTR/PTS',
+      icon: 'calculator',
+      route: 'Order Product',
+      color: '#3F51B5'
+    },
+    
+    {
+      title: 'Leave',
+      icon: 'calendar-clock',
+      route: 'Leave',
+      color: '#009688'
+    },
+    {
+      title: 'Visits',
+      icon: 'map-marker-radius',
+      route: 'STP',
+      color: '#607D8B'
+    },
+    
     {
       title: 'Utility',
       icon: 'tools',
       route: 'Utility',
-      color: '#607D8B'
-    },
-    {
-      title: 'Visual Aid',
-      icon: 'image',
-      route: 'Visual Aid',
-      color: '#795548'
+      color: '#FF5722'
     },
     {
       title: 'Profile',
       icon: 'account',
       route: 'Profile',
-      color: '#FF5722'
-    }
+      color: '#00BCD4'
+    },
+    // {
+    //   title: 'Connect With Us',
+    //   icon: 'phone-in-talk',
+    //   route: 'Profile',
+    //   color: '#8BC34A'
+    // }
   ];
 
   const getIconSize = () => {
@@ -214,7 +229,7 @@ const DashboardScreen = ({ navigation }) => {
                   );
                   setActiveSlide(slide);
                 }}
-                scrollEventThrottle={200}
+                scrollEventThrottle={900}
               >
                 {sliderImages.map((item, index) => (
                   <View key={item.id} style={[styles.slideItem, { width: dimensions.width }]}>
@@ -229,10 +244,10 @@ const DashboardScreen = ({ navigation }) => {
                       progressiveRenderingEnabled={true}
                       defaultSource={require('../../../assets/Staylor.png')}
                     />
-                    <View style={styles.slideOverlay}>
+                    {/* <View style={styles.slideOverlay}>
                       <Text style={styles.slideTitle}>{item.title}</Text>
                       <Text style={styles.slideDescription}>{item.description}</Text>
-                    </View>
+                    </View> */}
                   </View>
                 ))}
               </ScrollView>
@@ -417,25 +432,33 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   iconBox: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#FFB6C1',
-    borderRadius: 12,
+    width: 50,
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
-    elevation: 2,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   iconText: {
     textAlign: 'center',
-    // color: '#666',
-    maxWidth: '100%',
-    fontWeight: 'bold',
-    // fontSize: 20,
+    color: '#333',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+    fontWeight: 'bold'
   },
   newsCard: {
     elevation: 2,
-    backgroundColor: '#FFB6C1',
+    backgroundColor: '#fff',
   },
   newsTitleContainer: {
     flexDirection: 'row',

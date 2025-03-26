@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Image, Button, Alert, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, Image, Button, Alert, TouchableOpacity, Platform } from 'react-native';
 import { 
   Avatar,
   Title, 
@@ -186,7 +186,7 @@ const UserProfileScreen = ({ navigation }) => {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
       const startOfMonth = new Date(currentYear, currentMonth, 1);
-      const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
+      const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
       // Fetch current month's target
       const currentMonthTargetId = `${currentYear}_${currentMonth + 1}`;
@@ -195,43 +195,43 @@ const UserProfileScreen = ({ navigation }) => {
       
       if (targetDoc.exists()) {
         const targetData = targetDoc.data();
-        // Check if there's a specific target for the current month
-        if (targetData[currentMonthTargetId]) {
-          currentTarget = targetData[currentMonthTargetId];
-        } else {
-          currentTarget = targetData.target || 1000; // Fallback to default target
-        }
+        currentTarget = targetData[currentMonthTargetId] || targetData.target || 1000;
         setMonthlyTarget(currentTarget);
       } else {
-        // If no target is set, use default
+        setMonthlyTarget(1000);
         currentTarget = 1000;
-        setMonthlyTarget(currentTarget);
       }
 
-      // Fetch current month's sales from both collections
+      // Fetch current month's sales from both collections with date range filter
       const [approvedOrdersSnapshot, approvedHOrdersSnapshot] = await Promise.all([
         getDocs(query(
           collection(firestore, 'orders'),
           where('userId', '==', userId),
-          where('status', '==', 'approved')
+          where('status', '==', 'approved'),
+          where('createdAt', '>=', startOfMonth),
+          where('createdAt', '<=', endOfMonth)
         )),
         getDocs(query(
           collection(firestore, 'h-orders'),
           where('userId', '==', userId),
-          where('status', '==', 'approved')
+          where('status', '==', 'approved'),
+          where('createdAt', '>=', startOfMonth),
+          where('createdAt', '<=', endOfMonth)
         ))
       ]);
       
-      // Combine and filter orders by date
-      const allOrders = [...approvedOrdersSnapshot.docs, ...approvedHOrdersSnapshot.docs];
-      
       // Calculate current month sales
-      const currentSales = allOrders
-        .filter(doc => {
-          const orderDate = doc.data().createdAt?.toDate();
-          return orderDate >= startOfMonth && orderDate <= endOfMonth;
-        })
-        .reduce((total, doc) => total + (doc.data().totalAmount || doc.data().amount || 0), 0);
+      const currentSales = [
+        ...approvedOrdersSnapshot.docs,
+        ...approvedHOrdersSnapshot.docs
+      ].reduce((total, doc) => {
+        const data = doc.data();
+        const amount = data.totalAmount || 
+                      (data.price && data.quantity ? data.price * data.quantity : 0) || 
+                      data.amount || 
+                      0;
+        return total + amount;
+      }, 0);
       
       setCurrentMonthSales(currentSales);
 
@@ -240,29 +240,50 @@ const UserProfileScreen = ({ navigation }) => {
       for (let i = 5; i >= 0; i--) {
         const monthIndex = currentMonth - i;
         const yearOffset = Math.floor(monthIndex / 12);
-        const adjustedMonth = ((monthIndex % 12) + 12) % 12; // Handle negative months
+        const adjustedMonth = ((monthIndex % 12) + 12) % 12;
         const year = currentYear + yearOffset;
         
         const monthStart = new Date(year, adjustedMonth, 1);
-        const monthEnd = new Date(year, adjustedMonth + 1, 0);
+        const monthEnd = new Date(year, adjustedMonth + 1, 0, 23, 59, 59);
         
         // Get target for this specific month
         const monthTargetId = `${year}_${adjustedMonth + 1}`;
-        let monthTarget = currentTarget; // Default to current target
+        let monthTarget = currentTarget;
         
         if (targetDoc.exists()) {
           const targetData = targetDoc.data();
-          if (targetData[monthTargetId]) {
-            monthTarget = targetData[monthTargetId];
-          }
+          monthTarget = targetData[monthTargetId] || targetData.target || currentTarget;
         }
         
-        const monthSales = allOrders
-          .filter(doc => {
-            const orderDate = doc.data().createdAt?.toDate();
-            return orderDate >= monthStart && orderDate <= monthEnd;
-          })
-          .reduce((total, doc) => total + (doc.data().totalAmount || doc.data().amount || 0), 0);
+        // Fetch orders for this month with date range filter
+        const [monthOrdersSnapshot, monthHOrdersSnapshot] = await Promise.all([
+          getDocs(query(
+            collection(firestore, 'orders'),
+            where('userId', '==', userId),
+            where('status', '==', 'approved'),
+            where('createdAt', '>=', monthStart),
+            where('createdAt', '<=', monthEnd)
+          )),
+          getDocs(query(
+            collection(firestore, 'h-orders'),
+            where('userId', '==', userId),
+            where('status', '==', 'approved'),
+            where('createdAt', '>=', monthStart),
+            where('createdAt', '<=', monthEnd)
+          ))
+        ]);
+
+        const monthSales = [
+          ...monthOrdersSnapshot.docs,
+          ...monthHOrdersSnapshot.docs
+        ].reduce((total, doc) => {
+          const data = doc.data();
+          const amount = data.totalAmount || 
+                        (data.price && data.quantity ? data.price * data.quantity : 0) || 
+                        data.amount || 
+                        0;
+          return total + amount;
+        }, 0);
 
         last6Months.push({
           month: format(monthStart, 'MMM yyyy'),
@@ -270,6 +291,7 @@ const UserProfileScreen = ({ navigation }) => {
           target: monthTarget
         });
       }
+      
       setMonthlySalesHistory(last6Months);
     } catch (error) {
       console.error('Error fetching monthly sales data:', error);
@@ -319,46 +341,73 @@ const UserProfileScreen = ({ navigation }) => {
 
   const pickImage = async (type) => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: type === 'profile' ? [1, 1] : [16, 9],
-        quality: 1,
+      let imageUri;
+      
+      if (Platform.OS === 'web') {
+        // Create a file input element
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        
+        // Handle file selection
+        const file = await new Promise((resolve) => {
+          input.onchange = (e) => resolve(e.target.files[0]);
+          input.click();
+        });
+
+        if (!file) return;
+
+        // Convert file to data URL
+        imageUri = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(file);
+        });
+      } else {
+        // Mobile image picker
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: type === 'profile' ? [1, 1] : [16, 9],
+          quality: 1,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          imageUri = result.assets[0].uri;
+        } else {
+          return;
+        }
+      }
+
+      setUploading(true);
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      // Create storage path
+      const timestamp = Date.now();
+      const storagePath = `users/${userId}/${type}_${timestamp}.jpg`;
+
+      // Upload image
+      const downloadURL = await uploadFile(imageUri, storagePath, {
+        quality: 0.8,
+        maxWidth: type === 'profile' ? 500 : 1200,
+        maxHeight: type === 'profile' ? 500 : 675,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
-        setUploading(true);
+      // Update user profile in Firestore
+      await updateDoc(doc(firestore, 'users', userId), {
+        [`${type}ImageUrl`]: downloadURL,
+        updatedAt: new Date()
+      });
 
-        const userId = auth.currentUser?.uid;
-        if (!userId) return;
-
-        // Create storage path
-        const timestamp = Date.now();
-        const storagePath = `users/${userId}/${type}_${timestamp}.jpg`;
-
-        // Upload image
-        const downloadURL = await uploadFile(imageUri, storagePath, {
-          quality: 0.8,
-          maxWidth: type === 'profile' ? 500 : 1200,
-          maxHeight: type === 'profile' ? 500 : 675,
-        });
-
-        // Update user profile in Firestore
-        await updateDoc(doc(firestore, 'users', userId), {
-          [`${type}ImageUrl`]: downloadURL,
-          updatedAt: new Date()
-        });
-
-        // Update local state
-        if (type === 'profile') {
-          setProfileImage(downloadURL);
-        } else {
-          setCoverImage(downloadURL);
-        }
-
-        Alert.alert('Success', `${type === 'profile' ? 'Profile' : 'Cover'} image updated successfully`);
+      // Update local state
+      if (type === 'profile') {
+        setProfileImage(downloadURL);
+      } else {
+        setCoverImage(downloadURL);
       }
+
+      Alert.alert('Success', `${type === 'profile' ? 'Profile' : 'Cover'} image updated successfully`);
     } catch (error) {
       console.error('Error uploading image:', error);
       Alert.alert('Error', `Failed to update ${type === 'profile' ? 'profile' : 'cover'} image`);
@@ -437,21 +486,42 @@ const UserProfileScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      <TouchableOpacity onPress={() => pickImage('cover')} style={styles.coverImageContainer}>
+      <TouchableOpacity 
+        onPress={() => pickImage('cover')} 
+        style={styles.coverImageContainer}
+        activeOpacity={0.7}
+      >
         {coverImage ? (
-          <Image source={{ uri: coverImage }} style={styles.coverImage} />
+          <Image 
+            source={{ uri: coverImage }} 
+            style={styles.coverImage}
+            resizeMode="cover"
+          />
         ) : (
           <View style={[styles.coverImage, styles.placeholderCover]}>
             <MaterialCommunityIcons name="camera-plus" size={40} color="#666" />
             <Text style={styles.uploadText}>Upload Cover Image</Text>
           </View>
         )}
+        {uploading && (
+          <View style={styles.uploadingOverlay}>
+            <ActivityIndicator color="#fff" />
+          </View>
+        )}
       </TouchableOpacity>
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => pickImage('profile')} style={styles.profileImageContainer}>
+        <TouchableOpacity 
+          onPress={() => pickImage('profile')} 
+          style={styles.profileImageContainer}
+          activeOpacity={0.7}
+        >
           {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+            <Image 
+              source={{ uri: profileImage }} 
+              style={styles.profileImage}
+              resizeMode="cover"
+            />
           ) : (
             <Avatar.Text 
               size={80} 
@@ -510,11 +580,11 @@ const UserProfileScreen = ({ navigation }) => {
           </View>
           <Divider style={styles.divider} />
           
-          <View style={styles.infoRow}>
+          {/* <View style={styles.infoRow}>
             <MaterialCommunityIcons name="map" size={24} color="#666" />
             <Text style={styles.infoText}>{profile.territory || 'Not assigned'}</Text>
-          </View>
-          <Divider style={styles.divider} />
+          </View> */}
+          {/* <Divider style={styles.divider} /> */}
           
           <View style={styles.infoRow}>
             <MaterialCommunityIcons name="calendar" size={24} color="#666" />
@@ -611,7 +681,8 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: 10,
-    elevation: 2,
+    elevation: 2, 
+    backgroundColor: '#fff',
   },
   sectionTitle: {
     fontSize: 18,
@@ -702,31 +773,39 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  divider: {
-    marginTop: 16,
-    marginBottom: 16,
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   coverImageContainer: {
     width: '100%',
     height: 200,
+    position: 'relative',
   },
   coverImage: {
     width: '100%',
     height: 200,
-    resizeMode: 'cover',
+    backgroundColor: '#e1e1e1',
   },
   placeholderCover: {
-    backgroundColor: '#e1e1e1',
     justifyContent: 'center',
     alignItems: 'center',
   },
   uploadText: {
     color: '#666',
     marginTop: 8,
+    fontSize: 16,
   },
   profileImageContainer: {
     position: 'relative',
     marginTop: -40,
+    zIndex: 1,
   },
   profileImage: {
     width: 80,
@@ -734,6 +813,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     borderWidth: 3,
     borderColor: '#fff',
+    backgroundColor: '#e1e1e1',
   },
   editProfileIcon: {
     position: 'absolute',
@@ -744,6 +824,11 @@ const styles = StyleSheet.create({
     padding: 4,
     borderWidth: 2,
     borderColor: '#fff',
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
   },
 });
 

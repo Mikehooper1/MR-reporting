@@ -295,6 +295,7 @@ const styles = StyleSheet.create({
   headerCard: {
     margin: 16,
     marginBottom: 8,
+    backgroundColor: '#fff',
   },
   title: {
     fontSize: 24,
@@ -309,6 +310,7 @@ const styles = StyleSheet.create({
     margin: 8,
     marginHorizontal: 16,
     elevation: 2,
+    backgroundColor: '#fff',
   },
   medicineHeader: {
     flexDirection: 'row',

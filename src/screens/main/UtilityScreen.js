@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     margin: 16,
+    backgroundColor: '#fff',
   },
   input: {
     marginBottom: 16,

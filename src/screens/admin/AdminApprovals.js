@@ -207,6 +207,10 @@ const AdminApprovals = () => {
       'personal leave': 'leaves',
       'tourplan': 'tourPlans',
       'order': 'h-orders',
+      'regular': 'h-orders',
+      'sample': 'h-orders',
+      'regular order': 'h-orders',
+      'h-order': 'h-orders',
       'visualaid': 'visualAids',
       'product presentation': 'visualAids',
       'clinical data': 'visualAids',
@@ -331,7 +335,10 @@ const AdminApprovals = () => {
         itemType: selectedItem.itemType
       });
 
-      const collectionName = getCollectionName(selectedItem.itemType || selectedItem.originalType || selectedItem.type);
+      // For orders, always use 'h-orders' collection
+      const collectionName = selectedItem.type === 'order' ? 'h-orders' : 
+        getCollectionName(selectedItem.itemType || selectedItem.originalType || selectedItem.type);
+      
       if (!collectionName) {
         throw new Error(`Invalid item type: ${selectedItem.type}`);
       }
@@ -467,9 +474,25 @@ const AdminApprovals = () => {
           icon: 'calendar'
         };
       case 'order':
+        const orderDescription = `${userInfo}
+
+Product: ${item.productName}
+Quantity: ${item.quantity}
+
+Price Details:
+Base Price: ₹${(item.price || 0).toLocaleString()}
+PTS: ₹${(item.pts || 0).toLocaleString()}
+PTR: ₹${(item.ptr || 0).toLocaleString()}
+Total Amount: ₹${((item.price || 0) * item.quantity).toLocaleString()}
+
+Order Type: ${item.type}
+Priority: ${item.priority}
+${item.doctorName ? `Doctor: ${item.doctorName}` : ''}
+${item.remarks ? `Remarks: ${item.remarks}` : ''}`;
+
         return {
-          title: item.title || `Order: ${item.productName}`,
-          description: `${userInfo}\n\n${item.description}`,
+          title: `Order: ${item.productName}`,
+          description: orderDescription,
           icon: 'package-variant'
         };
       case 'visualAid':
@@ -717,6 +740,7 @@ const styles = StyleSheet.create({
   card: {
     margin: 16,
     elevation: 2,
+    backgroundColor: '#fff',
   },
   actionButtons: {
     flexDirection: 'row',
