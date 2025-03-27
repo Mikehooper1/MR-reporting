@@ -22,6 +22,7 @@ const AdminApprovals = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [monthlyTotals, setMonthlyTotals] = useState({});
 
   useEffect(() => {
     fetchPendingItems();
@@ -422,6 +423,117 @@ const AdminApprovals = () => {
     }
   };
 
+  const calculateMonthlyTotals = async (userId, date) => {
+    try {
+      if (!userId || !date) return;
+
+      // Get user's base salary first
+      const userDoc = await getDoc(doc(firestore, 'users', userId));
+      const baseSalary = userDoc.exists() ? (userDoc.data().dailySalary || 0) : 0;
+
+      // Get the month and year from the date
+      const expenseDate = new Date(date);
+      const month = expenseDate.getMonth() + 1;
+      const year = expenseDate.getFullYear();
+
+      // Query all expenses and leaves for the current month
+      const expensesQuery = query(
+        collection(firestore, 'expenses'),
+        where('userId', '==', userId),
+        where('status', 'in', ['pending', 'approved'])
+      );
+
+      const leavesQuery = query(
+        collection(firestore, 'leaves'),
+        where('userId', '==', userId),
+        where('status', 'in', ['pending', 'approved'])
+      );
+
+      const [expensesSnapshot, leavesSnapshot] = await Promise.all([
+        getDocs(expensesQuery),
+        getDocs(leavesQuery)
+      ]);
+
+      let totalAllowance = 0;
+      let totalFare = 0;
+      let totalOtherExpense = 0;
+      let totalBaseSalary = 0;
+      let workingDays = 0;
+      let leaveDates = new Set();
+
+      // Collect all leave dates
+      leavesSnapshot.forEach(doc => {
+        const leave = doc.data();
+        if (leave.startDate && leave.endDate) {
+          const start = leave.startDate.toDate ? leave.startDate.toDate() : new Date(leave.startDate);
+          const end = leave.endDate.toDate ? leave.endDate.toDate() : new Date(leave.endDate);
+          
+          // Add all dates between start and end to leaveDates
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateStr = format(d, 'MM-dd');
+            leaveDates.add(dateStr);
+          }
+        }
+      });
+
+      // Process expenses
+      expensesSnapshot.forEach(doc => {
+        const expense = doc.data();
+        
+        if (!expense.reportDate) return;
+
+        // Handle both MM-DD and YYYY-MM-DD formats
+        let expenseMonth;
+        let expenseDay;
+        if (expense.reportDate.includes('-')) {
+          const parts = expense.reportDate.split('-');
+          // If format is YYYY-MM-DD
+          if (parts.length === 3) {
+            expenseMonth = parts[1]; // Get month from YYYY-MM-DD
+            expenseDay = parts[2];
+          } else {
+            expenseMonth = parts[0]; // Get month from MM-DD
+            expenseDay = parts[1];
+          }
+        }
+
+        // Only include expenses from the current month
+        if (parseInt(expenseMonth) === month) {
+          totalAllowance += parseFloat(expense.allowanceAmount) || 0;
+          totalFare += parseFloat(expense.fare) || 0;
+          
+          // Calculate other expenses total
+          if (expense.otherExpenses && Array.isArray(expense.otherExpenses)) {
+            expense.otherExpenses.forEach(otherExpense => {
+              totalOtherExpense += parseFloat(otherExpense.amount) || 0;
+            });
+          }
+
+          // Add base salary if this day is not a leave day
+          const dateStr = `${expenseMonth}-${expenseDay}`;
+          if (!leaveDates.has(dateStr)) {
+            totalBaseSalary += baseSalary;
+            workingDays++;
+          }
+        }
+      });
+
+      const grandTotal = totalAllowance + totalFare + totalOtherExpense + totalBaseSalary;
+
+      setMonthlyTotals({
+        baseSalary,
+        totalAllowance,
+        totalBaseSalary,
+        totalFare,
+        totalOtherExpense,
+        workingDays,
+        grandTotal
+      });
+    } catch (error) {
+      console.error('Error calculating monthly totals:', error);
+    }
+  };
+
   const renderItemDetails = (item) => {
     const userInfo = item.userName ? `Submitted by: ${item.userName}` : 
                     item.userEmail ? `Submitted by: ${item.userEmail}` : 
@@ -451,6 +563,13 @@ const AdminApprovals = () => {
         const doctorVisits = item.doctorVisits || '0';
         const chemistVisits = item.chemistVisits || '0';
         
+        // Calculate monthly totals when rendering expense details
+        if (item.userId && item.createdAt) {
+          calculateMonthlyTotals(item.userId, item.createdAt.toDate());
+        }
+
+        const expenseTotal = parseFloat(allowanceAmount) + parseFloat(fare) + parseFloat(amount);
+        
         return {
           title: `${item.type} Expense Details`,
           description: `${userInfo}\n\n` +
@@ -464,7 +583,14 @@ const AdminApprovals = () => {
                       `Travel Fare: ₹${fare}\n` +
                       `Other Amount: ₹${amount}\n` +
                       `Details: ${description}\n\n` +
-                      `Total Amount: ₹${(parseFloat(allowanceAmount) + parseFloat(fare) + parseFloat(amount)).toFixed(2)}`,
+                      `Total Amount: ₹${expenseTotal.toFixed(2)}\n\n` +
+                      `Monthly Totals:\n` +
+                      `Base Salary: ₹${monthlyTotals.baseSalary || 0}\n` +
+                      `Total Allowance: ₹${monthlyTotals.totalAllowance || 0}\n` +
+                      `Total Fare: ₹${monthlyTotals.totalFare || 0}\n` +
+                      `Total Other Expense: ₹${monthlyTotals.totalOtherExpense || 0}\n` +
+                      `Working Days: ${monthlyTotals.workingDays || 0}\n` +
+                      `Grand Total: ₹${monthlyTotals.grandTotal || 0}`,
           icon: 'currency-usd'
         };
       case 'tourPlan':
@@ -628,7 +754,7 @@ ${item.remarks ? `Remarks: ${item.remarks}` : ''}`;
           />
         }
       >
-        <Title style={styles.screenTitle}>Pending Approvals</Title>
+        <Title style={styles.screenTitle}>HO Order Approvals</Title>
         
         <View style={styles.filterContainer}>
           <Chip

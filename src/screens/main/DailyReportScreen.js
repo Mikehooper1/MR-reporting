@@ -79,12 +79,12 @@ const DEFAULT_STP_LIST = [
   'INDORE-GWALIOR-INDORE',
 ];
 
-// Predefined names for "Working With"
+// Predefined names for "Working With" with their headquarters
 const WORKING_WITH_OPTIONS = [
-  'Alice',
-  'Bob',
-  'Charlie',
-  'Diana'
+  { name: 'THAKURDAS SINGH RAJPOOT (RBM)', headquarters: 'BHOPAL' },
+  { name: 'AMIT KUMAR SHARMA (Head OF MP)' , headquarters: 'GWALIOR' },
+  { name: 'POOJA SHRIVASTAVA (ARM)', headquarters: 'BHOPAL' },
+  // { name: 'VIKAS PATEL (ARM)', headquarters: 'JABALPUR' }
 ];
 
 const DailyReportScreen = () => {
@@ -651,11 +651,17 @@ const DailyReportScreen = () => {
               </Button>
             }
           >
-            {WORKING_WITH_OPTIONS.map((name) => (
+            {WORKING_WITH_OPTIONS.map((option) => (
               <Menu.Item
-                key={name}
-                onPress={() => handleWorkingWithSelect(name)}
-                title={name}
+                key={option.name}
+                onPress={() => handleWorkingWithSelect(option.name)}
+                title={option.name}
+                description={`Headquarters: ${option.headquarters}`}
+                right={(props) => (
+                  <View style={styles.workingWithRight}>
+                    <Text style={styles.headquartersText}>{option.headquarters}</Text>
+                  </View>
+                )}
               />
             ))}
           </Menu>
@@ -940,6 +946,15 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  workingWithRight: {
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  headquartersText: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });
 

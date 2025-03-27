@@ -12,6 +12,7 @@ import ActivityDetails from '../screens/admin/ActivityDetails';
 import AdminUtilityScreen from '../screens/admin/AdminUtilityScreen';
 import AdminLeaveApproval from '../screens/admin/AdminLeaveApproval';
 import AdminNewsSubmit from '../screens/admin/AdminNewsSubmit';
+import AllReports from '../screens/admin/AllReports';
 
 const Stack = createNativeStackNavigator();
 
@@ -65,6 +66,11 @@ const AdminNavigator = () => {
         name="Approvals"
         component={AdminApprovals}
         options={getScreenOptions('Pending Approvals')}
+      />
+      <Stack.Screen
+        name="AllReports"
+        component={AllReports}
+        options={getScreenOptions('All Reports')}
       />
       <Stack.Screen
         name="EmployeeDetails"

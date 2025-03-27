@@ -115,6 +115,7 @@ const AppNavigator = () => {
             component={DashboardScreen}
             options={{ title: 'Dashboard' }}
           />
+          
           <Stack.Screen 
             name="Daily Report" 
             component={DailyReportScreen}

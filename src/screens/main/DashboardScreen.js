@@ -12,10 +12,12 @@ import {
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { firestore } from '../../services/firebase';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useAuth } from '../../contexts/AuthContext';
 
 const DashboardScreen = ({ navigation }) => {
   const theme = useTheme();
+  const { user } = useAuth();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,6 +27,7 @@ const DashboardScreen = ({ navigation }) => {
   const scrollViewRef = useRef(null);
   const [sliderImages, setSliderImages] = useState([]);
   const [sliderLoading, setSliderLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
@@ -34,6 +37,18 @@ const DashboardScreen = ({ navigation }) => {
 
     return () => subscription.remove();
   }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      if (!user?.uid) return;
+      const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+      if (userDoc.exists()) {
+        setUserProfile(userDoc.data());
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
   const fetchSliderImages = async () => {
     try {
@@ -55,6 +70,7 @@ const DashboardScreen = ({ navigation }) => {
   useEffect(() => {
     fetchLatestNews();
     fetchSliderImages();
+    fetchUserProfile();
   }, []);
 
   useEffect(() => {
@@ -209,6 +225,13 @@ const DashboardScreen = ({ navigation }) => {
           />
         }
       >
+        {/* Employee Information */}
+        <View style={styles.employeeInfo}>
+          <Text style={styles.employeeName}>Welcome: {userProfile?.fullName || user?.displayName || 'Employee'}</Text>
+          <Text style={styles.employeeCode}>EmpCode: {userProfile?.employeeCode || 'N/A'}</Text>
+          <Text style={styles.employeeDesignation}>Designation: {userProfile?.designation || 'MR'}</Text>
+        </View>
+
         {/* Image Slider */}
         <View style={[styles.sliderContainer, { height: getSliderHeight() }]}>
           {sliderLoading ? (
@@ -520,6 +543,30 @@ const styles = StyleSheet.create({
   noSliderText: {
     color: '#666',
     fontSize: 16,
+  },
+  employeeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    backgroundColor: '#f5f5f5',
+  },
+  employeeName: {
+    fontSize: 14,
+    marginRight: 16,
+    color: '#333',
+  },
+  employeeCode: {
+    fontSize: 14,
+    marginRight: 16,
+    color: '#666',
+  },
+  employeeDesignation: {
+    fontSize: 14,
+    color: '#666',
   },
 });
 

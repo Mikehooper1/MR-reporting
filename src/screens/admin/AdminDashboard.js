@@ -1,19 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Image, Alert, Dimensions } from 'react-native';
 import { Card, Title, Paragraph, DataTable, Searchbar, Text, Button, ActivityIndicator, IconButton, Portal, Dialog, TextInput, Divider } from 'react-native-paper';
 import { firestore, storage } from '../../services/firebase';
-import { collection, query, getDocs, where, orderBy, Timestamp, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, Timestamp, addDoc, deleteDoc, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { logoutUser } from '../../services/auth';
 import { format } from 'date-fns';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import ProductManagement from './ProductManagement';
 import * as ImagePicker from 'expo-image-picker';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AdminDashboard = ({ navigation }) => {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeSlide, setActiveSlide] = useState(0);
+  const scrollViewRef = React.useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [statistics, setStatistics] = useState({
     totalEmployees: 0,
     activeToday: 0,
@@ -51,10 +57,26 @@ const AdminDashboard = ({ navigation }) => {
   ];
 
   useEffect(() => {
+    fetchUserProfile();
     fetchEmployees();
     fetchStatistics();
     fetchSliderImages();
+    // Get screen dimensions
+    const { width, height } = Dimensions.get('window');
+    setDimensions({ width, height });
   }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      if (!user?.uid) return;
+      const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+      if (userDoc.exists()) {
+        setUserProfile(userDoc.data());
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -327,24 +349,35 @@ const AdminDashboard = ({ navigation }) => {
     navigation.navigate('EmployeeDetails', { employeeId });
   };
 
+  const getSliderHeight = () => {
+    return dimensions.width * 0.5; // 50% of screen width for height
+  };
+
   const renderStatisticsCards = () => (
     <View style={styles.statsContainer}>
       <Card style={styles.statsCard}>
         <Card.Content>
-          <Title>Total Employees</Title>
+          <Title>TOTAL EMPLOYEES <MaterialCommunityIcons name="account-group" size={24} color="#ADD8E6" /></Title>
           <Paragraph style={styles.statNumber}>{statistics.totalEmployees}</Paragraph>
         </Card.Content>
       </Card>
       <Card style={styles.statsCard}>
         <Card.Content>
-          <Title>Active Today</Title>
+          <Title>ACTIVE TODAY <MaterialCommunityIcons name="calendar-check" size={24} color="#ADD8E6" /></Title>
           <Paragraph style={styles.statNumber}>{statistics.activeToday}</Paragraph>
         </Card.Content>
       </Card>
-      <Card style={styles.statsCard}>
+      <Card 
+        style={styles.statsCard}
+        onPress={() => navigation.navigate('AllReports')}
+      >
         <Card.Content>
-          <Title>Total Reports</Title>
+          <Title>TOTAL BE REPORTS <MaterialCommunityIcons name="file-document-outline" size={24} color="#ADD8E6" /></Title>
           <Paragraph style={styles.statNumber}>{statistics.totalReports}</Paragraph>
+          <View style={styles.cardFooter}>
+            <Text style={styles.viewMoreText}>View All Reports</Text>
+            <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+          </View>
         </Card.Content>
       </Card>
       <Card 
@@ -352,7 +385,7 @@ const AdminDashboard = ({ navigation }) => {
         onPress={() => navigation.navigate('Approvals')}
       >
         <Card.Content>
-          <Title>Pending Approvals</Title>
+          <Title>HO ORDER APPROVALS <MaterialCommunityIcons name="folder-outline" size={24} color="#ADD8E6" /></Title>
           <Paragraph style={[styles.statNumber, { color: statistics.pendingApprovals > 0 ? '#f44336' : '#4caf50' }]}>
             {statistics.pendingApprovals}
           </Paragraph>
@@ -472,6 +505,77 @@ const AdminDashboard = ({ navigation }) => {
                 onPress={handleLogout}
               /> */}
             </View>
+            {/* Image Slider */}
+            <View style={[styles.sliderContainer, { height: getSliderHeight() }]}>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#2196F3" />
+                  <Text style={styles.loadingText}>Loading slider...</Text>
+                </View>
+              ) : sliderImages.length > 0 ? (
+                <>
+                  <ScrollView
+                    ref={scrollViewRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={({nativeEvent}) => {
+                      const slide = Math.round(
+                        nativeEvent.contentOffset.x / nativeEvent.layoutMeasurement.width
+                      );
+                      setActiveSlide(slide);
+                    }}
+                    scrollEventThrottle={900}
+                  >
+                    {sliderImages.map((item, index) => (
+                      <View key={item.id} style={[styles.slideItem, { width: dimensions.width }]}>
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={[styles.sliderImage, { 
+                            width: dimensions.width,
+                            height: getSliderHeight()
+                          }]}
+                          resizeMode="cover"
+                          fadeDuration={0}
+                          progressiveRenderingEnabled={true}
+                        />
+                        {/* <View style={styles.slideOverlay}>
+                          <Text style={styles.slideTitle}>{item.title}</Text>
+                          <Text style={styles.slideDescription}>{item.description}</Text>
+                        </View> */}
+                      </View>
+                    ))}
+                  </ScrollView>
+                  
+                  {/* Pagination Dots */}
+                  <View style={styles.pagination}>
+                    {sliderImages.map((_, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => {
+                          scrollViewRef.current?.scrollTo({
+                            x: index * dimensions.width,
+                            animated: true,
+                          });
+                          setActiveSlide(index);
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.paginationDot,
+                            index === activeSlide && styles.paginationDotActive
+                          ]}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.noSliderContainer}>
+                  <Text style={styles.noSliderText}>No slider images available</Text>
+                </View>
+              )}
+            </View>
             {renderStatisticsCards()}
             {renderNavigationCards()}
             <Card style={styles.tableCard}>
@@ -559,6 +663,11 @@ const AdminDashboard = ({ navigation }) => {
       <View style={styles.navbarTitleContainer}>
         <Text style={styles.navbarTitle}>Admin Panel</Text>
       </View>
+      {/* <View style={styles.employeeInfo}>
+        <Text style={styles.employeeName}>Welcome: {userProfile?.fullName || user?.displayName || 'Admin'}</Text>
+        <Text style={styles.employeeCode}>EmpCode: {userProfile?.employeeCode || 'N/A'}</Text>
+        <Text style={styles.employeeDesignation}>Designation: {userProfile?.designation || 'Admin'}</Text>
+      </View> */}
       <View style={styles.navButtons}>
         <TouchableOpacity
           style={[styles.navButton, activeTab === 'dashboard' && styles.activeNavButton]}
@@ -887,6 +996,107 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 150,
     borderRadius: 8,
+  },
+  employeeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    backgroundColor: '#f5f5f5',
+  },
+  employeeName: {
+    fontSize: 14,
+    marginRight: 16,
+    color: '#333',
+  },
+  employeeCode: {
+    fontSize: 14,
+    marginRight: 16,
+    color: '#666',
+  },
+  employeeDesignation: {
+    fontSize: 14,
+    color: '#666',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  viewMoreText: {
+    color: '#666',
+    fontSize: 14,
+    marginRight: 4,
+  },
+  sliderContainer: {
+    width: '100%',
+    backgroundColor: '#f5f5f5',
+    position: 'relative',
+  },
+  slideItem: {
+    flex: 1,
+    position: 'relative',
+  },
+  sliderImage: {
+    width: '100%',
+    height: '100%',
+  },
+  slideOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  slideTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  slideDescription: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  pagination: {
+    position: 'absolute',
+    bottom: 16,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    marginHorizontal: 4,
+  },
+  paginationDotActive: {
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#666',
+  },
+  noSliderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noSliderText: {
+    color: '#666',
+    fontSize: 16,
   },
 });
 

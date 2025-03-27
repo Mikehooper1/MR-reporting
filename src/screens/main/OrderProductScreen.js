@@ -32,6 +32,8 @@ const OrderProductScreen = () => {
     remarks: '',
     strip: '',
     unit: '',
+    gst: '',
+    gstPercentage: '',
   });
   const [productQuantities, setProductQuantities] = useState({});
   const [cartItems, setCartItems] = useState([]);
@@ -51,7 +53,7 @@ const OrderProductScreen = () => {
       const productsList = productsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        discountPercentage: doc.data().discountPercentage || 0
+        discountPercentage: doc.data().discountPercentage || 0 
       }));
       setProducts(productsList);
     } catch (error) {
@@ -91,6 +93,8 @@ const OrderProductScreen = () => {
         price: product.price,
         pts: product.pts,
         ptr: product.ptr,
+        gst: product.gst,
+        gstPercentage: product.gstPercentage,
         discountPercentage: product.discountPercentage || 0,
         imageUrl: product.imageUrl,
         quantity: quantity
@@ -139,6 +143,8 @@ const OrderProductScreen = () => {
           price: item.price,
           pts: item.pts,
           ptr: item.ptr,
+          gst: item.gst,
+          gstPercentage: item.gstPercentage,
           imageUrl: item.imageUrl,
           quantity: item.quantity,
           type: orderDetails.type,
@@ -275,18 +281,24 @@ const OrderProductScreen = () => {
                   <Text style={styles.priceLabel}>Total Amount</Text>
                   <Text style={styles.priceValue}>₹{(product.price * productQuantities[product.id] || 0).toLocaleString()}</Text>
                 </View>
-                <View style={styles.priceRow}>
+                {/* <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>Total PTS</Text>
                   <Text style={styles.priceValue}>₹{(product.pts * productQuantities[product.id] || 0).toLocaleString()}</Text>
-                </View>
+                </View> */}
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Total PTR</Text>
-                  <Text style={styles.priceValue}>₹{(product.ptr * productQuantities[product.id] || 0).toLocaleString()}</Text>
-                </View>
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Total After Discount</Text>
+                  <Text style={styles.priceLabel}>Total PTR (Discount)</Text>
                   <Text style={styles.priceValue}>
-                    ₹{((product.price * productQuantities[product.id] || 0) * (1 - (product.discount / 100))).toLocaleString()}
+                    ₹{((product.ptr * productQuantities[product.id] || 0) * (1 - (product.discount / 100))).toLocaleString()}
+                  </Text>
+                </View>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Total Including GST</Text>
+                  <Text style={styles.priceValue}>
+                    ₹{(() => {
+                      const totalPtrDiscount = (product.ptr * productQuantities[product.id] || 0) * (1 - (product.discount / 100));
+                      const gstAmount = totalPtrDiscount * (product.gst / 100);
+                      return (totalPtrDiscount + gstAmount).toLocaleString();
+                    })()}
                   </Text>
                 </View>
               </View>

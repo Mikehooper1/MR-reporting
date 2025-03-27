@@ -645,14 +645,22 @@ const ExpenseDetailsScreen = () => {
 
   const fetchLocationsAndFareRate = async () => {
     try {
-      // Fetch locations
-      const locationsQuery = query(collection(firestore, 'locations'));
-      const locationsSnapshot = await getDocs(locationsQuery);
-      const locationsData = [];
-      locationsSnapshot.forEach((doc) => {
-        locationsData.push({ id: doc.id, ...doc.data() });
-      });
-      setLocations(locationsData);
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      // Fetch user document to get locations
+      const userDoc = await getDoc(doc(firestore, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Convert locations object to array format
+        const locationsData = userData.locations ? Object.entries(userData.locations).map(([id, location]) => ({
+          id,
+          ...location
+        })) : [];
+        setLocations(locationsData);
+      } else {
+        setLocations([]);
+      }
 
       // Fetch fare rate
       const settingsDoc = await getDoc(doc(firestore, 'settings', 'expense'));
@@ -670,6 +678,7 @@ const ExpenseDetailsScreen = () => {
     } catch (error) {
       console.error('Error fetching locations and fare rate:', error);
       setFarePerKm(0);
+      setLocations([]);
     }
   };
 

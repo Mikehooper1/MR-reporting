@@ -416,15 +416,7 @@ const ProductManagement = () => {
               style={styles.input}
               mode="outlined"
             />
-            <TextInput
-              label="MRP (₹)"
-              value={newProduct.price}
-              onChangeText={handlePriceChange}
-              keyboardType="numeric"
-              style={styles.input}
-              mode="outlined"
-              right={<TextInput.Affix text="₹" />}
-            />
+           
             <TextInput
               label="GST (%)"
               value={newProduct.gst}
@@ -432,6 +424,15 @@ const ProductManagement = () => {
               keyboardType="numeric"
               style={styles.input}
               mode="outlined"
+            />
+             <TextInput
+              label="MRP (₹)"
+              value={newProduct.price}
+              onChangeText={handlePriceChange}
+              keyboardType="numeric"
+              style={styles.input}
+              mode="outlined"
+              right={<TextInput.Affix text="₹" />}
             />
             <TextInput
               label="Strip"

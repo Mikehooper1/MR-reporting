@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { Card, Title, Paragraph, DataTable, Text, Button, ActivityIndicator, List, Divider, TextInput, Portal, Modal, IconButton, Menu, ProgressBar, Dialog } from 'react-native-paper';
 import { firestore, auth } from '../../services/firebase';
-import { collection, query, getDocs, where, doc, getDoc, updateDoc, addDoc, deleteDoc, setDoc, serverTimestamp, onSnapshot, writeBatch } from 'firebase/firestore';
+import { collection, query, getDocs, where, doc, getDoc, updateDoc, addDoc, deleteDoc, setDoc, serverTimestamp, onSnapshot, writeBatch, deleteField } from 'firebase/firestore';
 import { deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { format } from 'date-fns';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -45,6 +45,7 @@ const EmployeeDetails = ({ route, navigation }) => {
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [blockReason, setBlockReason] = useState('');
   const [passwordAction, setPasswordAction] = useState('remove');
+  const [showHeadquartersMenu, setShowHeadquartersMenu] = useState(false);
 
   // Update STP_LIST with headquarters and range mapping
   const HEADQUARTERS_CONFIG = {
@@ -135,16 +136,17 @@ const EmployeeDetails = ({ route, navigation }) => {
         }
       });
 
-      // Fetch locations directly from locations collection
-      const locationsQuery = query(collection(firestore, 'locations'));
-      const locationsSnapshot = await getDocs(locationsQuery);
+      // Fetch locations from employee's document
+      if (employeeData.locations) {
+        const allLocations = Object.entries(employeeData.locations).map(([id, location]) => ({
+          id,
+          ...location
+        })).sort((a, b) => a.name.localeCompare(b.name));
+        setLocations(allLocations);
+      } else {
+        setLocations([]);
+      }
       
-      const allLocations = locationsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })).sort((a, b) => a.name.localeCompare(b.name));
-      
-      setLocations(allLocations);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching employee details:', error);
@@ -464,41 +466,39 @@ const EmployeeDetails = ({ route, navigation }) => {
         }
       }
 
-      // Check if location already exists
-      const existingLocation = locations.find(loc => 
-        loc.name.toLowerCase() === selectedSTP.toLowerCase()
-      );
+      const employeeRef = doc(firestore, 'users', employeeId);
+      const newLocationData = {
+        name: selectedSTP,
+        distance: distance,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-      if (existingLocation) {
-        // Update existing location's distance
-        await updateDoc(doc(firestore, 'locations', existingLocation.id), {
-          distance: distance,
-          updatedAt: new Date()
-        });
-      } else {
-        // Add new location
-        await addDoc(collection(firestore, 'locations'), {
-          name: selectedSTP,
-          distance: distance,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-      }
+      // Update the employee document with the new location
+      await updateDoc(employeeRef, {
+        [`locations.${selectedSTP}`]: newLocationData
+      });
 
       setEditingLocation(false);
       setNewLocation({ name: '', distance: '' });
       setSelectedSTP('');
       fetchEmployeeDetails();
-      alert('Location updated successfully');
+      alert('Location added successfully');
     } catch (error) {
-      console.error('Error updating location:', error);
-      alert('Error updating location. Please try again.');
+      console.error('Error adding location:', error);
+      alert('Error adding location. Please try again.');
     }
   };
 
   const deleteLocation = async (locationId) => {
     try {
-      await deleteDoc(doc(firestore, 'locations', locationId));
+      const employeeRef = doc(firestore, 'users', employeeId);
+      
+      // Remove the location from the employee's document
+      await updateDoc(employeeRef, {
+        [`locations.${locationId}`]: deleteField()
+      });
+
       fetchEmployeeDetails();
       alert('Location deleted successfully');
     } catch (error) {
@@ -910,6 +910,20 @@ const EmployeeDetails = ({ route, navigation }) => {
           title="Phone"
           description={employee.phone || 'N/A'}
           left={props => <List.Icon {...props} icon="phone" />}
+        />
+        <Divider />
+        <List.Item
+          title="Headquarters"
+          description={employee.headquarters || 'Not set'}
+          left={props => <List.Icon {...props} icon="office-building" />}
+          right={() => (
+            <Button mode="contained" onPress={() => {
+              setNewHeadquarters(employee.headquarters || '');
+              setEditingHeadquarters(true);
+            }}>
+              Edit
+            </Button>
+          )}
         />
         <Divider />
         <List.Item
@@ -1416,6 +1430,42 @@ const EmployeeDetails = ({ route, navigation }) => {
                   </Button>
                 </View>
               </Card.Content>
+            </Card>
+          </Modal>
+
+          <Modal visible={editingHeadquarters} onDismiss={() => setEditingHeadquarters(false)} contentContainerStyle={styles.modalContainer}>
+            <Card>
+              <Card.Title title="Update Headquarters" />
+              <Card.Content>
+                <Menu
+                  visible={showHeadquartersMenu}
+                  onDismiss={() => setShowHeadquartersMenu(false)}
+                  anchor={
+                    <Button
+                      mode="outlined"
+                      onPress={() => setShowHeadquartersMenu(true)}
+                      style={styles.input}
+                    >
+                      {newHeadquarters || "Select Headquarters*"}
+                    </Button>
+                  }
+                >
+                  {Object.keys(HEADQUARTERS_CONFIG).map((headquarters) => (
+                    <Menu.Item
+                      key={headquarters}
+                      onPress={() => {
+                        setNewHeadquarters(headquarters);
+                        setShowHeadquartersMenu(false);
+                      }}
+                      title={headquarters}
+                    />
+                  ))}
+                </Menu>
+              </Card.Content>
+              <Card.Actions>
+                <Button onPress={() => setEditingHeadquarters(false)}>Cancel</Button>
+                <Button onPress={updateHeadquarters} mode="contained">Save</Button>
+              </Card.Actions>
             </Card>
           </Modal>
 
