@@ -7,12 +7,12 @@ import { Platform } from 'react-native';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDIWzgCVlq_Az6gkdZ4r3Cdus1LcAhqAuk",
-  authDomain: "sheelvo-mr.firebaseapp.com",
-  projectId: "sheelvo-mr",
-  storageBucket: "sheelvo-mr.firebasestorage.app",
-  messagingSenderId: "402453123027",
-  appId: "1:402453123027:android:a3e43395a8c51f3a936926",
+  apiKey: "Enter Your API",
+  authDomain: "Your Domain",
+  projectId: "Project ID",
+  storageBucket: "ID",
+  messagingSenderId: "4000003123027",
+  appId: "appID",
   measurementId: "G-MEASUREMENT_ID"
 };
 
